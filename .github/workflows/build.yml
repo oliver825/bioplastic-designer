@@ -1,0 +1,58 @@
+name: Build app
+
+# Runs when you publish a Release (and can also be run manually for testing)
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # lets the build attach files to the release
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows
+          - os: macos-latest
+            name: macOS
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build the app
+        run: pyinstaller --onedir --windowed --name BioplasticDesigner --collect-all sklearn --collect-all scipy app.py
+
+      - name: Zip it (Windows)
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path dist/BioplasticDesigner -DestinationPath BioplasticDesigner-Windows.zip
+
+      - name: Zip it (macOS)
+        if: runner.os == 'macOS'
+        run: cd dist && zip -r ../BioplasticDesigner-macOS.zip BioplasticDesigner.app
+
+      # Always keep a copy you can download from the Actions tab (handy for testing)
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BioplasticDesigner-${{ matrix.name }}
+          path: BioplasticDesigner-*.zip
+
+      # When triggered by a published Release, attach the download to that release
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: BioplasticDesigner-*.zip
