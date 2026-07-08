@@ -29,22 +29,16 @@ DEFAULT_INPUT_COLS = [
     'P(3HB-co-4HB)',
     'P(3HB)',
     'mcl-PHA',
-    'PEG (Plasticizer)',
-    'Nucleating Agent (Boron Nitride)',
-    'Filler (CaCO3)',
 ]
 
 DEFAULT_TARGET_COLS = ['Tensile Strength (MPa)', 'Elongation at Break (%)', 'Modulus 100 (MPa)']
 
 # (min, max) fraction of the total formulation for each material.
 DEFAULT_BOUNDS = {
-    'PLA':                              (0.0, 1.0),
-    'P(3HB-co-4HB)':                    (0.0, 1.0),
-    'P(3HB)':                           (0.0, 1.0),
-    'mcl-PHA':                          (0.0, 1.0),
-    'PEG (Plasticizer)':                (0.0, 0.20),
-    'Nucleating Agent (Boron Nitride)': (0.0, 0.02),
-    'Filler (CaCO3)':                   (0.0, 0.30),
+    'PLA':           (0.0, 1.0),
+    'P(3HB-co-4HB)': (0.0, 1.0),
+    'P(3HB)':        (0.0, 1.0),
+    'mcl-PHA':       (0.0, 1.0),
 }
 
 
