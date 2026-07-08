@@ -224,10 +224,10 @@ class App(tk.Tk):
         try:
             self._set_status("Checking accuracy (leave-one-out)\u2026")
             rep = self.model.cv_report()
-            lines = ["Leave-one-out accuracy  (1-R\u00b2 near 1 = good, near 0 = weak,"
+            lines = ["Leave-one-out accuracy  (R\u00b2 near 1 = good, near 0 = weak,"
                      " negative = worse than guessing the average):"]
             for col, d in rep.items():
-                lines.append(f"   {col}:  1-R\u00b2 = {d['r2']:.2f}   typical error \u00b1 {d['rmse']:.2f}")
+                lines.append(f"   {col}:  R\u00b2 = {d['r2']:.2f}   typical error \u00b1 {d['rmse']:.2f}")
             cov = self.model.data_coverage()
             constant = [m for m, dd in cov.items() if not dd['varies']]
             if constant:
