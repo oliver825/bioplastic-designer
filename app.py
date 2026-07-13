@@ -54,7 +54,6 @@ class DataMeter(tk.Canvas):
         frac = max(0.0, min(x / y, 1.0))
         colour = RED if frac < 0.34 else (AMBER if frac < 0.75 else GREEN)
 
-        # numbers
         self.create_text(0, 10, anchor="w", text=f"{x} / {y} rows",
                          fill=TEXT, font=(FONT, 13, "bold"))
         if x >= y:
@@ -63,7 +62,6 @@ class DataMeter(tk.Canvas):
             note = f"~{y - x} more before predictions start becoming usable"
         self.create_text(w, 10, anchor="e", text=note, fill=MUTED, font=(FONT, 9))
 
-        # track + fill (rounded-ish)
         top, bot = 30, 44
         self.create_rectangle(0, top, w, bot, fill=TRACK, outline="")
         self.create_rectangle(0, top, max(2, w * frac), bot, fill=colour, outline="")
@@ -103,7 +101,7 @@ class App(tk.Tk):
                     lightcolor=BORDER, borderwidth=1, padding=6)
 
     def _card(self, parent, title, fill="x", expand=False):
-        outer = tk.Frame(parent, bg=BORDER)  # 1px border via padding trick
+        outer = tk.Frame(parent, bg=BORDER)
         outer.pack(fill=fill, expand=expand, padx=10, pady=8)
         card = tk.Frame(outer, bg=CARD)
         card.pack(fill="both", expand=True, padx=1, pady=1)
@@ -115,7 +113,6 @@ class App(tk.Tk):
 
     # ---- layout ----
     def _build(self):
-        # header band
         header = tk.Frame(self, bg=ACCENT)
         header.pack(fill="x")
         tk.Label(header, text="Bioplastic Blend Designer", bg=ACCENT, fg="white",
@@ -123,7 +120,6 @@ class App(tk.Tk):
         tk.Label(header, text="Predict a recipe from the properties you want",
                  bg=ACCENT, fg="#D7E8DE", font=(FONT, 10)).pack(anchor="w", padx=20, pady=(0, 14))
 
-        # two columns: inputs on the left, results on the right
         content = tk.Frame(self, bg=BG)
         content.pack(fill="both", expand=True)
         content.columnconfigure(0, minsize=470, weight=0)
@@ -134,7 +130,7 @@ class App(tk.Tk):
         right = tk.Frame(content, bg=BG)
         right.grid(row=0, column=1, sticky="nsew")
 
-        # 1. Data (left)
+        # 1. Data
         d = self._card(left, "1.  Data")
         row = tk.Frame(d, bg=CARD); row.pack(fill="x")
         self.path_var = tk.StringVar(value="data.csv")
@@ -156,19 +152,19 @@ class App(tk.Tk):
                                 font=(FONT, 9), wraplength=430)
         self.quality.pack(anchor="w")
 
-        # 2. Targets (left)
+        # 2. Targets
         t = self._card(left, "2.  Desired properties")
         self.target_vars = {}
         for col in DEFAULT_TARGET_COLS:
             rr = tk.Frame(t, bg=CARD); rr.pack(fill="x", pady=3)
             tk.Label(rr, text=col, bg=CARD, fg=TEXT, font=(FONT, 10),
-                     width=22, anchor="w").pack(side="left")
+                     width=24, anchor="w").pack(side="left")
             v = tk.StringVar(); self.target_vars[col] = v
             ttk.Entry(rr, textvariable=v, width=16).pack(side="left")
         ttk.Button(t, text="Suggest recipe", style="Accent.TButton",
                    command=self._suggest).pack(anchor="w", pady=(10, 2))
 
-        # 3. Result (right, fills the column)
+        # 3. Result
         res = self._card(right, "3.  Suggested formulation", fill="both", expand=True)
         self.result = tk.Text(res, height=20, wrap="word", font=(MONO, 10),
                               relief="flat", background="#FBFCFD", foreground=TEXT,
@@ -227,7 +223,9 @@ class App(tk.Tk):
             lines = ["Leave-one-out accuracy  (R\u00b2 near 1 = good, near 0 = weak,"
                      " negative = worse than guessing the average):"]
             for col, d in rep.items():
-                lines.append(f"   {col}:  R\u00b2 = {d['r2']:.2f}   typical error \u00b1 {d['rmse']:.2f}")
+                tag = " [log-scaled]" if d.get('log_scaled') else ""
+                lines.append(f"   {col}{tag}:  R\u00b2 = {d['r2']:.2f}   "
+                             f"typical error \u00b1 {d['rmse']:.1f}")
             cov = self.model.data_coverage()
             constant = [m for m, dd in cov.items() if not dd['varies']]
             if constant:
@@ -269,11 +267,11 @@ class App(tk.Tk):
     def _verdict(self, out, targets):
         target_outside = too_uncertain = impossible = False
         for col in out['predicted']:
-            m, sgm = out['predicted'][col], out['std'][col]
-            lo, hi = m - 1.96 * sgm, m + 1.96 * sgm
+            lo, hi = out['lo'][col], out['hi'][col]
             if not (lo <= targets[col] <= hi):
                 target_outside = True
-            if 1.96 * sgm >= out['data_std'].get(col, 1.0):
+            # half-width of the 95% range as wide as the spread of the data itself
+            if (hi - lo) / 2.0 >= out['data_std'].get(col, 1.0):
                 too_uncertain = True
             if lo < 0:
                 impossible = True
@@ -296,40 +294,40 @@ class App(tk.Tk):
         self.result.configure(state="normal")
         self.result.delete("1.0", "end")
 
-        # Recipe as a two-column table (fewer rows, uses horizontal space)
         self.result.insert("end", "SUGGESTED RECIPE  (fraction of total formulation)\n", "head")
         items = list(out['recipe'].items())
         for k in range(0, len(items), 2):
             name_l, frac_l = items[k]
-            cell = f"  {name_l:<32}{frac_l * 100:>7.2f} %"
+            cell = f"  {name_l:<20}{frac_l * 100:>7.2f} %"
             if k + 1 < len(items):
                 name_r, frac_r = items[k + 1]
-                cell += f"     {name_r:<32}{frac_r * 100:>7.2f} %"
+                cell += f"     {name_r:<20}{frac_r * 100:>7.2f} %"
             self.result.insert("end", cell + "\n")
 
-        # Properties: one line each
         self.result.insert("end",
             "\nPREDICTED PROPERTIES  (target \u2192 predicted, 95% range)\n", "head")
         for col in out['predicted']:
-            m, sgm, t = out['predicted'][col], out['std'][col], targets[col]
-            lo, hi = m - 1.96 * sgm, m + 1.96 * sgm
+            m, t = out['predicted'][col], targets[col]
+            lo, hi = out['lo'][col], out['hi'][col]
             self.result.insert("end",
-                f"  {col:<22} target {t:g}  \u2192  predicted {m:.2f}"
+                f"  {col:<24} target {t:g}  \u2192  predicted {m:.2f}"
                 f"   (95%: {lo:.2f} to {hi:.2f})\n")
 
-        # Verdict underneath
         level, vlines = self._verdict(out, targets)
         self.result.insert("end", "\n")
         for ln in vlines:
             self.result.insert("end", ln + "\n", level)
 
-        # Brief explanation of the 95% range
-        self.result.insert("end",
+        note = (
             "\nThe 95% range is a confidence interval. This is the band that the model is 95% sure that the true value falls in.\n"
             "For example, a 95% range of 20 to 25 for Tensile strength means that the model believes there is a 95% chance that the value of Tensile strength created by the recipe would lie between 20 and 25 MPa.\n\n"
-            "The model's predicted value is the midpoint of this range.\n"
-            "Narrow = confident (recipe is near your data)\nWide = unsure (extrapolating).\n",
-            "muted")
+            "Narrow = confident (recipe is near your data)\nWide = unsure (extrapolating).\n"
+        )
+        if out.get('log_scaled'):
+            note += ("\nLog-scaled properties (" + ", ".join(out['log_scaled']) + ") have an\n"
+                     "asymmetric range: the predicted value is not the midpoint, and the\n"
+                     "range can never go below zero.\n")
+        self.result.insert("end", note, "muted")
         self.result.configure(state="disabled")
 
 
